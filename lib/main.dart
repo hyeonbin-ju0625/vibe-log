@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/screens/result_screen.dart';
 import 'presentation/screens/map_screen.dart';
@@ -16,7 +17,14 @@ class TRApp extends StatelessWidget {
       title: 'TR — 여행 플래너',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0A0A0F),
+        textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF7B6EF6),
+          secondary: Color(0xFFFF6B9D),
+          surface: Color(0xFF141420),
+        ),
         useMaterial3: true,
       ),
       initialRoute: '/',
