@@ -1,67 +1,164 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../providers/trip_provider.dart';
+import '../../data/models/place.dart';
+import '../../data/models/trip_plan.dart';
 
-class ResultScreen extends StatefulWidget {
+class ResultScreen extends ConsumerStatefulWidget {
   const ResultScreen({super.key});
   @override
-  State<ResultScreen> createState() => _ResultScreenState();
+  ConsumerState<ResultScreen> createState() => _ResultScreenState();
 }
 
-class _ResultScreenState extends State<ResultScreen> {
-  int _selectedDay = 0;
-
-  static const kBg      = Color(0xFF0A0A0F);
-  static const kSurface = Color(0xFF141420);
-  static const kCard    = Color(0xFF1E1E30);
-  static const kBorder  = Color(0xFF2E2E45);
+class _ResultScreenState extends ConsumerState<ResultScreen> {
+  static const kBg      = Color(0xFFF6F7FF);
+  static const kSurface = Color(0xFFFFFFFF);
+  static const kCard    = Color(0xFFF0F2FF);
+  static const kBorder  = Color(0xFFE4E6F5);
   static const kPrimary = Color(0xFF7B6EF6);
   static const kSecond  = Color(0xFFFF6B9D);
-  static const kMint    = Color(0xFF00D4AA);
   static const kGold    = Color(0xFFFFBE0B);
-  static const kText    = Color(0xFFF0F0FF);
-  static const kSub     = Color(0xFF8892A4);
+  static const kText    = Color(0xFF1E1B4B);
+  static const kSub     = Color(0xFF9496B0);
 
-  final List<Map<String, dynamic>> _plan = const [
-    {'day':1,'time':'09:00','place':'도착 & 호텔 체크인','desc':'짐을 풀고 루프탑 카페에서 여유롭게 휴식','icon':'🏨','cat':'숙소','cc':0xFF7B6EF6},
-    {'day':1,'time':'12:00','place':'현지 맛집 점심','desc':'구글 평점 4.5 이상의 현지 인기 식당 탐방','icon':'🍜','cat':'식사','cc':0xFFFF6B9D},
-    {'day':1,'time':'14:30','place':'주요 관광지 방문','desc':'도시를 대표하는 명소를 여유롭게 탐방','icon':'🏛️','cat':'관광','cc':0xFF00D4AA},
-    {'day':1,'time':'19:00','place':'루프탑 저녁 식사','desc':'야경을 감상하며 분위기 좋은 레스토랑 디너','icon':'🍽️','cat':'식사','cc':0xFFFF6B9D},
-    {'day':2,'time':'09:00','place':'로컬 시장 투어','desc':'이른 아침 현지 재래시장에서 현지인처럼','icon':'🛒','cat':'체험','cc':0xFFFFBE0B},
-    {'day':2,'time':'13:00','place':'박물관 / 미술관','desc':'현지 역사와 문화를 감각 있게 탐방','icon':'🎨','cat':'문화','cc':0xFFFF8E53},
-    {'day':2,'time':'18:30','place':'야경 명소 & 선셋','desc':'전망대에서 황금빛 노을과 화려한 야경 감상','icon':'🌆','cat':'관광','cc':0xFF00D4AA},
-  ];
-
-  List<Map<String, dynamic>> get _filtered =>
-      _selectedDay == 0 ? _plan : _plan.where((e) => e['day'] == _selectedDay).toList();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final planState = ref.read(tripPlanProvider);
+      if (planState is TripPlanIdle) {
+        final request = ref.read(tripRequestProvider);
+        ref.read(tripPlanProvider.notifier).generate(request);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)!.settings.arguments as Map;
-    final dest   = (args['destination'] ?? '목적지') as String;
-    final days   = (args['days'] ?? 3) as int;
-    final budget = (args['budget'] ?? 500000) as int;
+    final planState = ref.watch(tripPlanProvider);
+    return switch (planState) {
+      TripPlanLoading() => _buildLoading(),
+      TripPlanSuccess(:final plan) => _buildResult(plan),
+      TripPlanError(:final message) => _buildError(message),
+      _ => _buildLoading(),
+    };
+  }
 
+  Widget _buildLoading() {
+    final request = ref.watch(tripRequestProvider);
+    final dest = request.destination.isEmpty ? '여행지' : request.destination;
     return Scaffold(
       backgroundColor: kBg,
-      body: Column(
-        children: [
-          _header(context, dest, days, budget),
-          _dayTabs(),
-          Expanded(child: _timeline()),
-        ],
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [kPrimary, kSecond]),
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(
+                    color: kPrimary.withValues(alpha: 0.4),
+                    blurRadius: 32, spreadRadius: 4)],
+              ),
+              child: const Icon(Icons.auto_awesome_rounded,
+                  color: Colors.white, size: 36),
+            ),
+            const SizedBox(height: 32),
+            Text('AI가 일정을 만드는 중...',
+                style: GoogleFonts.poppins(
+                    fontSize: 20, fontWeight: FontWeight.w700, color: kText)),
+            const SizedBox(height: 10),
+            Text('$dest ${request.days}박 ${request.days + 1}일 코스',
+                style: GoogleFonts.poppins(fontSize: 14, color: kSub)),
+            const SizedBox(height: 40),
+            SizedBox(
+              width: 200,
+              child: LinearProgressIndicator(
+                backgroundColor: kBorder,
+                valueColor: const AlwaysStoppedAnimation<Color>(kPrimary),
+                borderRadius: BorderRadius.circular(8),
+                minHeight: 4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('최적의 동선과 장소를 분석하고 있어요',
+                style: GoogleFonts.poppins(fontSize: 12, color: kSub)),
+          ],
+        ),
       ),
-      floatingActionButton: _fab(context),
     );
   }
 
-  // ── 헤더 ──
-  Widget _header(BuildContext ctx, String dest, int days, int budget) {
+  Widget _buildError(String message) {
+    return Scaffold(
+      backgroundColor: kBg,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: kSecond, size: 56),
+            const SizedBox(height: 16),
+            Text('일정 생성에 실패했어요',
+                style: GoogleFonts.poppins(
+                    fontSize: 18, fontWeight: FontWeight.w700, color: kText)),
+            const SizedBox(height: 8),
+            Text(message,
+                style: GoogleFonts.poppins(fontSize: 13, color: kSub),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 32),
+            GestureDetector(
+              onTap: () {
+                final request = ref.read(tripRequestProvider);
+                ref.read(tripPlanProvider.notifier).generate(request);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 32, vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [kPrimary, kSecond]),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(
+                      color: kPrimary.withValues(alpha: 0.4),
+                      blurRadius: 20, offset: const Offset(0, 6))],
+                ),
+                child: Text('다시 시도',
+                    style: GoogleFonts.poppins(
+                        color: Colors.white, fontWeight: FontWeight.w700,
+                        fontSize: 15)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResult(TripPlan plan) {
+    final selectedDay = ref.watch(selectedDayProvider);
+    final places = plan.placesForDay(selectedDay);
+    return Scaffold(
+      backgroundColor: kBg,
+      body: Column(children: [
+        _header(plan),
+        _dayTabs(plan),
+        Expanded(child: _timeline(places)),
+      ]),
+      floatingActionButton: _fab(),
+    );
+  }
+
+  Widget _header(TripPlan plan) {
+    final req = plan.request;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1A1040), Color(0xFF0D0D1E)],
+          colors: [Color(0xFF7B6EF6), Color(0xFFa855f7)],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(36),
@@ -75,23 +172,34 @@ class _ResultScreenState extends State<ResultScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                _backBtn(ctx),
+                _backBtn(),
                 const SizedBox(width: 14),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(dest,
-                      style: GoogleFonts.poppins(
-                          fontSize: 22, fontWeight: FontWeight.w800, color: kText)),
-                  Text('여행 일정',
-                      style: GoogleFonts.poppins(fontSize: 13, color: kSub)),
-                ]),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(req.destination,
+                        style: GoogleFonts.poppins(
+                            fontSize: 22, fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                    Text(plan.summary,
+                        style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.75)),
+                        overflow: TextOverflow.ellipsis),
+                  ]),
+                ),
               ]),
               const SizedBox(height: 20),
               Row(children: [
-                _statBadge(Icons.calendar_today_rounded, '$days박 ${days+1}일', kPrimary),
+                _statBadge(Icons.calendar_today_rounded,
+                    '${req.days}박 ${req.days + 1}일'),
                 const SizedBox(width: 10),
-                _statBadge(Icons.wallet_rounded, '${(budget/10000).round()}만원', kSecond),
+                _statBadge(Icons.wallet_rounded,
+                    '${(req.budget / 10000).round()}만원'),
                 const SizedBox(width: 10),
-                _statBadge(Icons.place_rounded, '${_plan.length}개 장소', kMint),
+                _statBadge(Icons.place_rounded,
+                    '${plan.places.length}개 장소'),
               ]),
             ],
           ),
@@ -100,15 +208,15 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  Widget _backBtn(BuildContext ctx) {
+  Widget _backBtn() {
     return GestureDetector(
-      onTap: () => Navigator.pop(ctx),
+      onTap: () => Navigator.pop(context),
       child: Container(
         width: 42, height: 42,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: Colors.white.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
         ),
         child: const Icon(Icons.arrow_back_ios_new_rounded,
             color: Colors.white, size: 18),
@@ -116,22 +224,24 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  Widget _statBadge(IconData icon, String label, Color color) {
+  Widget _statBadge(IconData icon, String label) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
+          border: Border.all(
+              color: Colors.white.withValues(alpha: 0.25)),
         ),
         child: Row(children: [
-          Icon(icon, color: color, size: 15),
+          Icon(icon, color: Colors.white, size: 14),
           const SizedBox(width: 6),
           Expanded(
             child: Text(label,
                 style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: kText),
+                    fontSize: 11, fontWeight: FontWeight.w600,
+                    color: Colors.white),
                 overflow: TextOverflow.ellipsis),
           ),
         ]),
@@ -139,24 +249,28 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  // ── 날짜 탭 ──
-  Widget _dayTabs() {
+  Widget _dayTabs(TripPlan plan) {
+    final selected = ref.watch(selectedDayProvider);
+    final totalDays = plan.totalDays;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-      child: Row(children: [
-        _tab('전체', 0),
-        const SizedBox(width: 8),
-        _tab('Day 1', 1),
-        const SizedBox(width: 8),
-        _tab('Day 2', 2),
-      ]),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          _tab('전체', 0, selected),
+          for (int d = 1; d <= totalDays; d++) ...[
+            const SizedBox(width: 8),
+            _tab('Day $d', d, selected),
+          ],
+        ]),
+      ),
     );
   }
 
-  Widget _tab(String label, int val) {
-    final sel = _selectedDay == val;
+  Widget _tab(String label, int val, int selected) {
+    final sel = selected == val;
     return GestureDetector(
-      onTap: () => setState(() => _selectedDay = val),
+      onTap: () => ref.read(selectedDayProvider.notifier).select(val),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
@@ -168,9 +282,10 @@ class _ResultScreenState extends State<ResultScreen> {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: sel ? Colors.transparent : kBorder),
           boxShadow: sel
-              ? [BoxShadow(color: kPrimary.withValues(alpha: 0.4),
-                  blurRadius: 14, offset: const Offset(0, 4))]
-              : null,
+              ? [BoxShadow(color: kPrimary.withValues(alpha: 0.35),
+                  blurRadius: 12, offset: const Offset(0, 4))]
+              : [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Text(label,
             style: GoogleFonts.poppins(
@@ -181,22 +296,23 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  // ── 타임라인 ──
-  Widget _timeline() {
-    final items = _filtered;
+  Widget _timeline(List<Place> places) {
+    if (places.isEmpty) {
+      return Center(child: Text('장소가 없어요',
+          style: GoogleFonts.poppins(color: kSub, fontSize: 14)));
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-      itemCount: items.length,
+      itemCount: places.length,
       itemBuilder: (context, i) {
-        final item     = items[i];
-        final isLast   = i == items.length - 1;
-        final isNewDay = i == 0 || items[i - 1]['day'] != item['day'];
-        final cc       = Color(item['cc'] as int);
+        final place  = places[i];
+        final isLast = i == places.length - 1;
+        final isNewDay = i == 0 || places[i - 1].day != place.day;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isNewDay) _dayLabel(item['day'] as int),
-            _timelineRow(item, isLast, cc),
+            if (isNewDay) _dayLabel(place.day),
+            _timelineRow(place, isLast),
           ],
         );
       },
@@ -209,12 +325,11 @@ class _ResultScreenState extends State<ResultScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [kSecond, kGold]),
+          gradient: const LinearGradient(
+              colors: [kSecond, kGold]),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: kSecond.withValues(alpha: 0.35),
-                blurRadius: 12, offset: const Offset(0, 4)),
-          ],
+          boxShadow: [BoxShadow(color: kSecond.withValues(alpha: 0.3),
+              blurRadius: 10, offset: const Offset(0, 3))],
         ),
         child: Text('Day $day',
             style: GoogleFonts.poppins(
@@ -224,26 +339,25 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  Widget _timelineRow(Map<String, dynamic> item, bool isLast, Color cc) {
+  Widget _timelineRow(Place place, bool isLast) {
+    final cc = place.color;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 아이콘 + 선
           SizedBox(
             width: 40,
             child: Column(children: [
               Container(
                 width: 38, height: 38,
                 decoration: BoxDecoration(
-                  color: cc.withValues(alpha: 0.15),
+                  color: cc.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  border: Border.all(color: cc.withValues(alpha: 0.45), width: 1.5),
+                  border: Border.all(
+                      color: cc.withValues(alpha: 0.35), width: 1.5),
                 ),
-                child: Center(
-                  child: Text(item['icon'] as String,
-                      style: const TextStyle(fontSize: 18)),
-                ),
+                child: Center(child: Text(place.emoji,
+                    style: const TextStyle(fontSize: 18))),
               ),
               if (!isLast)
                 Expanded(
@@ -256,7 +370,6 @@ class _ResultScreenState extends State<ResultScreen> {
             ]),
           ),
           const SizedBox(width: 14),
-          // 카드
           Expanded(
             child: Container(
               margin: const EdgeInsets.only(bottom: 14),
@@ -264,13 +377,9 @@ class _ResultScreenState extends State<ResultScreen> {
                 color: kSurface,
                 borderRadius: BorderRadius.circular(18),
                 border: Border(left: BorderSide(color: cc, width: 3)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                boxShadow: [BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 12, offset: const Offset(0, 3))],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -281,7 +390,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          child: Text(item['place'] as String,
+                          child: Text(place.name,
                               style: GoogleFonts.poppins(
                                   fontSize: 15, fontWeight: FontWeight.w700,
                                   color: kText)),
@@ -294,7 +403,7 @@ class _ResultScreenState extends State<ResultScreen> {
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: kBorder),
                           ),
-                          child: Text(item['time'] as String,
+                          child: Text(place.time,
                               style: GoogleFonts.poppins(
                                   fontSize: 11, fontWeight: FontWeight.w600,
                                   color: kPrimary)),
@@ -302,7 +411,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(item['desc'] as String,
+                    Text(place.description,
                         style: GoogleFonts.poppins(
                             fontSize: 13, color: kSub, height: 1.55)),
                     const SizedBox(height: 10),
@@ -310,10 +419,10 @@ class _ResultScreenState extends State<ResultScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: cc.withValues(alpha: 0.12),
+                        color: cc.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(item['cat'] as String,
+                      child: Text(place.category.label,
                           style: GoogleFonts.poppins(
                               fontSize: 11, fontWeight: FontWeight.w600,
                               color: cc)),
@@ -328,34 +437,26 @@ class _ResultScreenState extends State<ResultScreen> {
     );
   }
 
-  // ── FAB ──
-  Widget _fab(BuildContext ctx) {
+  Widget _fab() {
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(ctx, '/map'),
+      onTap: () => Navigator.pushNamed(context, '/map'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(colors: [kPrimary, kSecond]),
           borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: kPrimary.withValues(alpha: 0.5),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          boxShadow: [BoxShadow(
+              color: kPrimary.withValues(alpha: 0.45),
+              blurRadius: 20, offset: const Offset(0, 8))],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.map_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Text('지도로 보기',
-                style: GoogleFonts.poppins(
-                    color: Colors.white, fontWeight: FontWeight.w700,
-                    fontSize: 14)),
-          ],
-        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.map_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
+          Text('지도로 보기',
+              style: GoogleFonts.poppins(
+                  color: Colors.white, fontWeight: FontWeight.w700,
+                  fontSize: 14)),
+        ]),
       ),
     );
   }

@@ -1,26 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../providers/trip_provider.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _ctrl = TextEditingController();
-  int _selectedDays = 3;
-  double _budget = 1000000;
   int? _selectedDest;
 
-  // ── Design Tokens ──
-  static const kBg      = Color(0xFF0A0A0F);
-  static const kSurface = Color(0xFF141420);
-  static const kBorder  = Color(0xFF2E2E45);
+  static const kBg      = Color(0xFFF6F7FF);
+  static const kSurface = Color(0xFFFFFFFF);
+  static const kBorder  = Color(0xFFE4E6F5);
   static const kPrimary = Color(0xFF7B6EF6);
   static const kSecond  = Color(0xFFFF6B9D);
-  static const kText    = Color(0xFFF0F0FF);
-  static const kSub     = Color(0xFF8892A4);
+  static const kText    = Color(0xFF1E1B4B);
+  static const kSub     = Color(0xFF9496B0);
 
   final _dests = const [
     {'name': '도쿄',  'icon': '🗼', 'c1': 0xFFFF6B9D, 'c2': 0xFFFF8E53},
@@ -39,8 +38,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Future<void> _onGenerate() async {
+    final dest = _ctrl.text.trim().isEmpty ? '목적지' : _ctrl.text.trim();
+    ref.read(tripRequestProvider.notifier).setDestination(dest);
+    ref.read(tripPlanProvider.notifier).reset();
+    if (!mounted) return;
+    await Navigator.pushNamed(context, '/result');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final request = ref.watch(tripRequestProvider);
     return Scaffold(
       backgroundColor: kBg,
       body: CustomScrollView(
@@ -54,8 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   _hero(),
                   _searchField(),
                   _quickDests(),
-                  _durationSection(),
-                  _budgetSection(),
+                  _durationSection(request.days),
+                  _budgetSection(request.budget),
                   _ctaButton(),
                   const SizedBox(height: 48),
                 ],
@@ -67,7 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 상단 바 ──
   Widget _topBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
@@ -80,9 +87,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ).createShader(b),
             child: Text('TR.',
                 style: GoogleFonts.poppins(
-                    fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white)),
+                    fontSize: 28, fontWeight: FontWeight.w800,
+                    color: Colors.white)),
           ),
-          _pill(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
+            ),
             child: Row(
               children: [
                 Container(
@@ -91,12 +105,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     gradient: const LinearGradient(colors: [kPrimary, kSecond]),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.auto_awesome, color: Colors.white, size: 13),
+                  child: const Icon(Icons.auto_awesome,
+                      color: Colors.white, size: 13),
                 ),
                 const SizedBox(width: 8),
                 Text('AI 플래너',
                     style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600, color: kText)),
+                        fontSize: 12, fontWeight: FontWeight.w600,
+                        color: kPrimary)),
               ],
             ),
           ),
@@ -105,35 +121,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 히어로 ──
   Widget _hero() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '어디로\n떠나볼까요? ✈️',
-            style: GoogleFonts.poppins(
-              fontSize: 40,
-              fontWeight: FontWeight.w800,
-              color: kText,
-              height: 1.15,
-              letterSpacing: -0.5,
-            ),
-          ),
+          Text('어디로\n떠나볼까요? ✈️',
+              style: GoogleFonts.poppins(
+                  fontSize: 38, fontWeight: FontWeight.w800,
+                  color: kText, height: 1.15, letterSpacing: -0.5)),
           const SizedBox(height: 12),
-          Text(
-            'AI가 당신만의 완벽한 여행 일정을 만들어 드려요.',
-            style: GoogleFonts.poppins(fontSize: 14, color: kSub, height: 1.6),
-          ),
+          Text('AI가 당신만의 완벽한 여행 일정을 만들어 드려요.',
+              style: GoogleFonts.poppins(
+                  fontSize: 14, color: kSub, height: 1.6)),
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  // ── 검색창 ──
   Widget _searchField() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -143,14 +150,14 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: kBorder),
           boxShadow: [
-            BoxShadow(
-              color: kPrimary.withValues(alpha: 0.1),
-              blurRadius: 24,
-            ),
+            BoxShadow(color: kPrimary.withValues(alpha: 0.08),
+                blurRadius: 20, offset: const Offset(0, 4)),
           ],
         ),
         child: TextField(
           controller: _ctrl,
+          onChanged: (v) =>
+              ref.read(tripRequestProvider.notifier).setDestination(v),
           style: GoogleFonts.poppins(
               color: kText, fontSize: 15, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
@@ -161,22 +168,23 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [kPrimary, kSecond]),
+                  gradient: const LinearGradient(
+                      colors: [kPrimary, kSecond]),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.search_rounded, color: Colors.white, size: 18),
+                child: const Icon(Icons.search_rounded,
+                    color: Colors.white, size: 18),
               ),
             ),
             border: InputBorder.none,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 18),
           ),
         ),
       ),
     );
   }
 
-  // ── 인기 목적지 ──
   Widget _quickDests() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,10 +196,12 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text('인기 여행지',
                   style: GoogleFonts.poppins(
-                      fontSize: 17, fontWeight: FontWeight.w700, color: kText)),
+                      fontSize: 17, fontWeight: FontWeight.w700,
+                      color: kText)),
               Text('전체보기',
                   style: GoogleFonts.poppins(
-                      fontSize: 12, color: kPrimary, fontWeight: FontWeight.w600)),
+                      fontSize: 12, color: kPrimary,
+                      fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -209,7 +219,10 @@ class _HomeScreenState extends State<HomeScreen> {
               return GestureDetector(
                 onTap: () {
                   setState(() => _selectedDest = i);
-                  _ctrl.text = d['name'] as String;
+                  final name = d['name'] as String;
+                  _ctrl.text = name;
+                  ref.read(tripRequestProvider.notifier)
+                      .setDestination(name);
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
@@ -224,11 +237,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(22),
                     border: sel
                         ? Border.all(color: Colors.white, width: 2.5)
-                        : Border.all(color: Colors.transparent, width: 2.5),
+                        : Border.all(
+                            color: Colors.transparent, width: 2.5),
                     boxShadow: [
                       BoxShadow(
-                        color: c1.withValues(alpha: sel ? 0.55 : 0.28),
-                        blurRadius: sel ? 24 : 14,
+                        color: c1.withValues(
+                            alpha: sel ? 0.5 : 0.22),
+                        blurRadius: sel ? 20 : 10,
                         offset: const Offset(0, 6),
                       ),
                     ],
@@ -241,8 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 10),
                       Text(d['name'] as String,
                           style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 14, fontWeight: FontWeight.w700,
                               color: Colors.white)),
                     ],
                   ),
@@ -255,8 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 기간 선택 ──
-  Widget _durationSection() {
+  Widget _durationSection(int selectedDays) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
       child: Column(
@@ -267,10 +280,12 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text('여행 기간',
                   style: GoogleFonts.poppins(
-                      fontSize: 17, fontWeight: FontWeight.w700, color: kText)),
-              Text('$_selectedDays박 ${_selectedDays + 1}일',
+                      fontSize: 17, fontWeight: FontWeight.w700,
+                      color: kText)),
+              Text('$selectedDays박 ${selectedDays + 1}일',
                   style: GoogleFonts.poppins(
-                      fontSize: 13, color: kPrimary, fontWeight: FontWeight.w600)),
+                      fontSize: 13, color: kPrimary,
+                      fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 14),
@@ -278,7 +293,8 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               for (int i = 0; i < _dayPresets.length; i++) ...[
                 if (i > 0) const SizedBox(width: 8),
-                Expanded(child: _dayPill(_dayPresets[i])),
+                Expanded(
+                    child: _dayPill(_dayPresets[i], selectedDays)),
               ],
             ],
           ),
@@ -287,10 +303,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _dayPill(int days) {
-    final sel = _selectedDays == days;
+  Widget _dayPill(int days, int selectedDays) {
+    final sel = selectedDays == days;
     return GestureDetector(
-      onTap: () => setState(() => _selectedDays = days),
+      onTap: () =>
+          ref.read(tripRequestProvider.notifier).setDays(days),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -302,18 +319,16 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: sel ? Colors.transparent : kBorder),
           boxShadow: sel
-              ? [BoxShadow(
-                  color: kPrimary.withValues(alpha: 0.4),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4))]
-              : null,
+              ? [BoxShadow(color: kPrimary.withValues(alpha: 0.35),
+                  blurRadius: 12, offset: const Offset(0, 4))]
+              : [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Column(
           children: [
             Text('${days == 7 ? "7+" : days}박',
                 style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 14, fontWeight: FontWeight.w700,
                     color: sel ? Colors.white : kText)),
             Text('${days + 1}일',
                 style: GoogleFonts.poppins(
@@ -325,8 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 예산 슬라이더 ──
-  Widget _budgetSection() {
+  Widget _budgetSection(int budget) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
       child: Column(
@@ -337,8 +351,21 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text('예산',
                   style: GoogleFonts.poppins(
-                      fontSize: 17, fontWeight: FontWeight.w700, color: kText)),
-              _gradientChip('${(_budget / 10000).round()}만원'),
+                      fontSize: 17, fontWeight: FontWeight.w700,
+                      color: kText)),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [kPrimary, kSecond]),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('${(budget / 10000).round()}만원',
+                    style: GoogleFonts.poppins(
+                        fontSize: 13, fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -348,6 +375,9 @@ class _HomeScreenState extends State<HomeScreen> {
               color: kSurface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: kBorder),
+              boxShadow: [BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8, offset: const Offset(0, 2))],
             ),
             child: Column(
               children: [
@@ -357,25 +387,29 @@ class _HomeScreenState extends State<HomeScreen> {
                     activeTrackColor: kPrimary,
                     inactiveTrackColor: kBorder,
                     thumbColor: Colors.white,
-                    overlayColor: kPrimary.withValues(alpha: 0.15),
+                    overlayColor: kPrimary.withValues(alpha: 0.12),
                     thumbShape:
                         const RoundSliderThumbShape(enabledThumbRadius: 10),
                   ),
                   child: Slider(
-                    value: _budget,
+                    value: budget.toDouble(),
                     min: 100000,
                     max: 3000000,
                     divisions: 29,
-                    onChanged: (v) => setState(() => _budget = v),
+                    onChanged: (v) => ref
+                        .read(tripRequestProvider.notifier)
+                        .setBudget(v.round()),
                   ),
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('10만원',
-                        style: GoogleFonts.poppins(fontSize: 11, color: kSub)),
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: kSub)),
                     Text('300만원',
-                        style: GoogleFonts.poppins(fontSize: 11, color: kSub)),
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: kSub)),
                   ],
                 ),
               ],
@@ -386,19 +420,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── CTA 버튼 ──
   Widget _ctaButton() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 0),
       child: GestureDetector(
-        onTap: () {
-          Navigator.pushNamed(context, '/result', arguments: {
-            'destination':
-                _ctrl.text.isEmpty ? '목적지' : _ctrl.text,
-            'days': _selectedDays,
-            'budget': _budget.round(),
-          });
-        },
+        onTap: _onGenerate,
         child: Container(
           width: double.infinity,
           height: 62,
@@ -411,10 +437,9 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: kPrimary.withValues(alpha: 0.5),
-                blurRadius: 32,
-                spreadRadius: 0,
-                offset: const Offset(0, 12),
+                color: kPrimary.withValues(alpha: 0.4),
+                blurRadius: 28,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
@@ -426,40 +451,12 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 12),
               Text('AI 일정 생성하기',
                   style: GoogleFonts.poppins(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 0.3)),
+                      fontSize: 17, fontWeight: FontWeight.w700,
+                      color: Colors.white, letterSpacing: 0.3)),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  // ── 공통 위젯 ──
-  Widget _pill({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: kSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorder),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _gradientChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [kPrimary, kSecond]),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label,
-          style: GoogleFonts.poppins(
-              fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
     );
   }
 }
