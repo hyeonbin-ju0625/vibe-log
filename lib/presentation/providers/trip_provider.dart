@@ -2,6 +2,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/trip_request.dart';
 import '../../data/models/trip_plan.dart';
 import '../../data/repositories/trip_repository.dart';
+import 'api_key_provider.dart';
+
+// ── 현재 탭 인덱스 ─────────────────────────────────────
+
+class TabIndexNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void setTab(int index) => state = index;
+}
+
+final tabIndexProvider =
+    NotifierProvider<TabIndexNotifier, int>(TabIndexNotifier.new);
 
 // ── 리포지토리 ──────────────────────────────────────────
 
@@ -51,10 +63,17 @@ class TripPlanNotifier extends Notifier<TripPlanState> {
   Future<void> generate(TripRequest request) async {
     state = const TripPlanLoading();
     try {
+      final apiKey = ref.read(apiKeyProvider);
+      if (apiKey.isEmpty) {
+        state = const TripPlanError('Claude API 키를 마이페이지에서 먼저 입력해주세요.');
+        return;
+      }
       final repo = ref.read(tripRepositoryProvider);
-      final plan = await repo.generatePlan(request);
+      final plan = await repo.generatePlan(request, apiKey);
       state = TripPlanSuccess(plan);
-    } catch (e) {
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('🔴 여행 생성 오류: $e\n$st');
       state = TripPlanError(e.toString());
     }
   }

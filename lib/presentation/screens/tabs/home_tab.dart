@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../providers/trip_provider.dart';
 
-class HomeTab extends StatelessWidget {
+class HomeTab extends ConsumerWidget {
   const HomeTab({super.key});
 
   static const kBg      = Color(0xFFF6F7FF);
@@ -16,7 +18,7 @@ class HomeTab extends StatelessWidget {
   static const kSub     = Color(0xFF9496B0);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: kBg,
       body: CustomScrollView(
@@ -27,7 +29,7 @@ class HomeTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _topBar(),
-                  _heroBanner(),
+                  _heroBanner(ref),
                   _sectionHeader('🔥  지금 뜨는 여행지', '전체보기'),
                   _trendingScroll(),
                   _sectionHeader('🌸  계절 추천', null),
@@ -108,7 +110,7 @@ class HomeTab extends StatelessWidget {
     );
   }
 
-  Widget _heroBanner() {
+  Widget _heroBanner(WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Container(
@@ -195,29 +197,32 @@ class HomeTab extends StatelessWidget {
                               fontSize: 19, fontWeight: FontWeight.w800,
                               color: Colors.white, height: 1.35)),
                       const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(22),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.12),
-                                blurRadius: 12, offset: const Offset(0, 4)),
-                          ],
+                      GestureDetector(
+                        onTap: () => ref.read(tabIndexProvider.notifier).setTab(1),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.12),
+                                  blurRadius: 12, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.auto_awesome_rounded,
+                                color: kPrimary, size: 14),
+                            const SizedBox(width: 7),
+                            Text('일정 만들기',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700,
+                                    color: kPrimary)),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.arrow_forward_rounded,
+                                color: kPrimary, size: 13),
+                          ]),
                         ),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.auto_awesome_rounded,
-                              color: kPrimary, size: 14),
-                          const SizedBox(width: 7),
-                          Text('일정 만들기',
-                              style: GoogleFonts.poppins(
-                                  fontSize: 12, fontWeight: FontWeight.w700,
-                                  color: kPrimary)),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward_rounded,
-                              color: kPrimary, size: 13),
-                        ]),
                       ),
                     ],
                   ),

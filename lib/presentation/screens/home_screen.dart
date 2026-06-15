@@ -30,7 +30,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     {'name': '제주',  'icon': '🌊', 'c1': 0xFF0085FF, 'c2': 0xFF00D4AA},
   ];
 
-  final _dayPresets = const [1, 2, 3, 5, 7];
+  final _dayPresets = const [1, 2, 3, 4];
 
   @override
   void dispose() {
@@ -39,11 +39,145 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _onGenerate() async {
-    final dest = _ctrl.text.trim().isEmpty ? '목적지' : _ctrl.text.trim();
+    final dest = _ctrl.text.trim();
+    if (dest.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('목적지를 입력해주세요',
+              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
+          backgroundColor: kPrimary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final request = ref.read(tripRequestProvider);
+    final confirmed = await _showConfirmDialog(dest, request.days, request.budget);
+    if (!confirmed || !mounted) return;
+
     ref.read(tripRequestProvider.notifier).setDestination(dest);
     ref.read(tripPlanProvider.notifier).reset();
-    if (!mounted) return;
     await Navigator.pushNamed(context, '/result');
+  }
+
+  Future<bool> _showConfirmDialog(String dest, int days, int budget) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: kSurface,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(color: kPrimary.withValues(alpha: 0.15),
+                  blurRadius: 40, offset: const Offset(0, 16)),
+            ],
+          ),
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [kPrimary, kSecond]),
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(
+                      color: kPrimary.withValues(alpha: 0.35),
+                      blurRadius: 20, offset: const Offset(0, 6))],
+                ),
+                child: const Icon(Icons.auto_awesome_rounded,
+                    color: Colors.white, size: 26),
+              ),
+              const SizedBox(height: 20),
+              Text('입력하신 정보가 맞나요?',
+                  style: GoogleFonts.poppins(
+                      fontSize: 17, fontWeight: FontWeight.w700, color: kText)),
+              const SizedBox(height: 6),
+              Text('아래 정보로 AI가 일정을 생성합니다',
+                  style: GoogleFonts.poppins(fontSize: 12, color: kSub)),
+              const SizedBox(height: 24),
+              _confirmRow('📍', '목적지', dest),
+              const SizedBox(height: 12),
+              _confirmRow('📅', '기간', '$days박 ${days + 1}일'),
+              const SizedBox(height: 12),
+              _confirmRow('💰', '예산', '${(budget / 10000).round()}만원'),
+              const SizedBox(height: 28),
+              Row(children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(ctx, false),
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F2FF),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: kBorder),
+                      ),
+                      child: Center(
+                        child: Text('다시 입력',
+                            style: GoogleFonts.poppins(
+                                fontSize: 14, fontWeight: FontWeight.w600,
+                                color: kSub)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(ctx, true),
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [kPrimary, kSecond]),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [BoxShadow(
+                            color: kPrimary.withValues(alpha: 0.35),
+                            blurRadius: 12, offset: const Offset(0, 4))],
+                      ),
+                      child: Center(
+                        child: Text('맞아요!',
+                            style: GoogleFonts.poppins(
+                                fontSize: 14, fontWeight: FontWeight.w700,
+                                color: Colors.white)),
+                      ),
+                    ),
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    ) ?? false;
+  }
+
+  Widget _confirmRow(String emoji, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7FF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorder),
+      ),
+      child: Row(children: [
+        Text(emoji, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 12),
+        Text(label,
+            style: GoogleFonts.poppins(fontSize: 13, color: kSub,
+                fontWeight: FontWeight.w500)),
+        const Spacer(),
+        Text(value,
+            style: GoogleFonts.poppins(
+                fontSize: 14, fontWeight: FontWeight.w700, color: kText)),
+      ]),
+    );
   }
 
   @override
@@ -293,9 +427,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               for (int i = 0; i < _dayPresets.length; i++) ...[
                 if (i > 0) const SizedBox(width: 8),
-                Expanded(
-                    child: _dayPill(_dayPresets[i], selectedDays)),
+                Expanded(child: _dayPill(_dayPresets[i], selectedDays)),
               ],
+              const SizedBox(width: 8),
+              Expanded(child: _customDayPill(selectedDays)),
             ],
           ),
         ],
@@ -336,6 +471,126 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     color: sel ? Colors.white70 : kSub)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _customDayPill(int selectedDays) {
+    final isCustom = !_dayPresets.contains(selectedDays);
+    final sel = isCustom;
+    return GestureDetector(
+      onTap: () => _showCustomDayDialog(selectedDays),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          gradient: sel
+              ? const LinearGradient(colors: [kPrimary, kSecond])
+              : null,
+          color: sel ? null : kSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: sel ? Colors.transparent : kBorder),
+          boxShadow: sel
+              ? [BoxShadow(color: kPrimary.withValues(alpha: 0.35),
+                  blurRadius: 12, offset: const Offset(0, 4))]
+              : [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          children: [
+            Text(isCustom ? '$selectedDays박' : '7+',
+                style: GoogleFonts.poppins(
+                    fontSize: 14, fontWeight: FontWeight.w700,
+                    color: sel ? Colors.white : kText)),
+            Text(isCustom ? '${selectedDays + 1}일' : '직접',
+                style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    color: sel ? Colors.white70 : kSub)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCustomDayDialog(int currentDays) {
+    final initVal = !_dayPresets.contains(currentDays) ? currentDays : 7;
+    int tempDays = initVal;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: kSurface,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24)),
+          title: Text('기간 직접 설정',
+              style: GoogleFonts.poppins(
+                  fontSize: 17, fontWeight: FontWeight.w700,
+                  color: kText)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('여행 기간을 선택하세요',
+                  style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF9496B0))),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _stepperBtn(Icons.remove_rounded, () {
+                    if (tempDays > 5) setDlg(() => tempDays--);
+                  }),
+                  const SizedBox(width: 24),
+                  Column(
+                    children: [
+                      Text('$tempDays박',
+                          style: GoogleFonts.poppins(
+                              fontSize: 32, fontWeight: FontWeight.w800,
+                              color: kPrimary)),
+                      Text('${tempDays + 1}일',
+                          style: GoogleFonts.poppins(
+                              fontSize: 14, color: const Color(0xFF9496B0))),
+                    ],
+                  ),
+                  const SizedBox(width: 24),
+                  _stepperBtn(Icons.add_rounded, () {
+                    if (tempDays < 30) setDlg(() => tempDays++);
+                  }),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('취소',
+                  style: GoogleFonts.poppins(
+                      color: const Color(0xFF9496B0), fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () {
+                ref.read(tripRequestProvider.notifier).setDays(tempDays);
+                Navigator.pop(ctx);
+              },
+              child: Text('확인',
+                  style: GoogleFonts.poppins(
+                      color: kPrimary, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stepperBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(
+          color: kPrimary.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+          border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+        ),
+        child: Icon(icon, color: kPrimary, size: 20),
       ),
     );
   }

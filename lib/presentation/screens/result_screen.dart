@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../providers/trip_provider.dart';
 import '../../data/models/place.dart';
 import '../../data/models/trip_plan.dart';
@@ -11,7 +12,8 @@ class ResultScreen extends ConsumerStatefulWidget {
   ConsumerState<ResultScreen> createState() => _ResultScreenState();
 }
 
-class _ResultScreenState extends ConsumerState<ResultScreen> {
+class _ResultScreenState extends ConsumerState<ResultScreen>
+    with SingleTickerProviderStateMixin {
   static const kBg      = Color(0xFFF6F7FF);
   static const kSurface = Color(0xFFFFFFFF);
   static const kCard    = Color(0xFFF0F2FF);
@@ -22,27 +24,65 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
   static const kText    = Color(0xFF1E1B4B);
   static const kSub     = Color(0xFF9496B0);
 
+  late final AnimationController _gaugeCtrl;
+  late final Animation<double> _gaugeAnim;
+  bool _gaugeComplete = false;
+
   @override
   void initState() {
     super.initState();
+
+    _gaugeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    );
+    _gaugeAnim = CurvedAnimation(
+      parent: _gaugeCtrl,
+      curve: Curves.easeInOut,
+    );
+    _gaugeCtrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() => _gaugeComplete = true);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final planState = ref.read(tripPlanProvider);
-      if (planState is TripPlanIdle) {
-        final request = ref.read(tripRequestProvider);
-        ref.read(tripPlanProvider.notifier).generate(request);
+      if (planState is TripPlanSuccess) {
+        // 이미 결과 있음 (내 여행에서 진입) → 게이지 스킵
+        setState(() => _gaugeComplete = true);
+      } else {
+        // 새로 생성 → 게이지 시작
+        _gaugeCtrl.forward();
+        if (planState is TripPlanIdle) {
+          final request = ref.read(tripRequestProvider);
+          ref.read(tripPlanProvider.notifier).generate(request);
+        }
       }
     });
   }
 
   @override
+  void dispose() {
+    _gaugeCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final planState = ref.watch(tripPlanProvider);
-    return switch (planState) {
-      TripPlanLoading() => _buildLoading(),
-      TripPlanSuccess(:final plan) => _buildResult(plan),
-      TripPlanError(:final message) => _buildError(message),
-      _ => _buildLoading(),
-    };
+
+    // 게이지가 아직 채워지는 중 → 무조건 로딩 화면
+    if (!_gaugeComplete) return _buildLoading();
+
+    // 게이지 완료 후 상태에 따라 전환
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      child: switch (planState) {
+        TripPlanSuccess(:final plan) => _buildResult(plan),
+        TripPlanError(:final message) => _buildError(message),
+        _ => _buildLoading(), // 게이지 끝났지만 API 아직 대기 중 (드문 경우)
+      },
+    );
   }
 
   Widget _buildLoading() {
@@ -54,36 +94,73 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [kPrimary, kSecond]),
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(
-                    color: kPrimary.withValues(alpha: 0.4),
-                    blurRadius: 32, spreadRadius: 4)],
+            // 원형 게이지 + 로고
+            AnimatedBuilder(
+              animation: _gaugeAnim,
+              builder: (_, __) => SizedBox(
+                width: 116, height: 116,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // 배경 트랙
+                    SizedBox(
+                      width: 116, height: 116,
+                      child: CircularProgressIndicator(
+                        value: 1.0,
+                        strokeWidth: 5,
+                        color: kBorder,
+                      ),
+                    ),
+                    // 채워지는 게이지
+                    SizedBox(
+                      width: 116, height: 116,
+                      child: CircularProgressIndicator(
+                        value: _gaugeAnim.value,
+                        strokeWidth: 5,
+                        strokeCap: StrokeCap.round,
+                        valueColor: AlwaysStoppedAnimation(
+                          Color.lerp(kPrimary, kSecond, _gaugeAnim.value)!,
+                        ),
+                        backgroundColor: Colors.transparent,
+                      ),
+                    ),
+                    // 로고
+                    Container(
+                      width: 88, height: 88,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [kPrimary, kSecond]),
+                        shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(
+                            color: kPrimary.withValues(alpha: 0.4),
+                            blurRadius: 28, spreadRadius: 2)],
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded,
+                          color: Colors.white, size: 38),
+                    ),
+                  ],
+                ),
               ),
-              child: const Icon(Icons.auto_awesome_rounded,
-                  color: Colors.white, size: 36),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 36),
             Text('AI가 일정을 만드는 중...',
                 style: GoogleFonts.poppins(
                     fontSize: 20, fontWeight: FontWeight.w700, color: kText)),
             const SizedBox(height: 10),
             Text('$dest ${request.days}박 ${request.days + 1}일 코스',
                 style: GoogleFonts.poppins(fontSize: 14, color: kSub)),
-            const SizedBox(height: 40),
-            SizedBox(
-              width: 200,
-              child: LinearProgressIndicator(
-                backgroundColor: kBorder,
-                valueColor: const AlwaysStoppedAnimation<Color>(kPrimary),
-                borderRadius: BorderRadius.circular(8),
-                minHeight: 4,
+            const SizedBox(height: 16),
+            // 게이지 퍼센트 텍스트
+            AnimatedBuilder(
+              animation: _gaugeAnim,
+              builder: (_, __) => Text(
+                '${(_gaugeAnim.value * 100).toInt()}%',
+                style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w600,
+                    color: kPrimary),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text('최적의 동선과 장소를 분석하고 있어요',
                 style: GoogleFonts.poppins(fontSize: 12, color: kSub)),
           ],
@@ -105,9 +182,14 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
                 style: GoogleFonts.poppins(
                     fontSize: 18, fontWeight: FontWeight.w700, color: kText)),
             const SizedBox(height: 8),
-            Text(message,
-                style: GoogleFonts.poppins(fontSize: 13, color: kSub),
-                textAlign: TextAlign.center),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320, maxHeight: 120),
+              child: SingleChildScrollView(
+                child: Text(message,
+                    style: GoogleFonts.poppins(fontSize: 13, color: kSub),
+                    textAlign: TextAlign.center),
+              ),
+            ),
             const SizedBox(height: 32),
             GestureDetector(
               onTap: () {
@@ -145,9 +227,61 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
       body: Column(children: [
         _header(plan),
         _dayTabs(plan),
+        _mapArea(plan.placesForDay(selectedDay)),
         Expanded(child: _timeline(places)),
       ]),
-      floatingActionButton: _fab(),
+    );
+  }
+
+  Widget _mapArea(List<Place> locs) {
+    final valid = locs
+        .where((p) => p.lat != null && p.lng != null && p.lat != 0 && p.lng != 0)
+        .toList();
+
+    if (valid.isEmpty) {
+      return Container(
+        height: 220,
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEEBFF),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Center(
+          child: Text('지도 정보를 불러올 수 없어요',
+              style: GoogleFonts.poppins(fontSize: 13, color: kSub)),
+        ),
+      );
+    }
+
+    final avgLat = valid.map((p) => p.lat!).reduce((a, b) => a + b) / valid.length;
+    final avgLng = valid.map((p) => p.lng!).reduce((a, b) => a + b) / valid.length;
+
+    final markers = valid.map((p) => Marker(
+      markerId: MarkerId(p.name),
+      position: LatLng(p.lat!, p.lng!),
+      infoWindow: InfoWindow(title: p.name, snippet: p.time),
+    )).toSet();
+
+    return Container(
+      height: 220,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(
+            color: kPrimary.withValues(alpha: 0.10),
+            blurRadius: 16, offset: const Offset(0, 4))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: GoogleMap(
+        initialCameraPosition: CameraPosition(
+          target: LatLng(avgLat, avgLng),
+          zoom: 13,
+        ),
+        markers: markers,
+        zoomControlsEnabled: false,
+        myLocationButtonEnabled: false,
+        mapToolbarEnabled: false,
+      ),
     );
   }
 
@@ -437,27 +571,5 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
     );
   }
 
-  Widget _fab() {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/map'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [kPrimary, kSecond]),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [BoxShadow(
-              color: kPrimary.withValues(alpha: 0.45),
-              blurRadius: 20, offset: const Offset(0, 8))],
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.map_rounded, color: Colors.white, size: 20),
-          const SizedBox(width: 8),
-          Text('지도로 보기',
-              style: GoogleFonts.poppins(
-                  color: Colors.white, fontWeight: FontWeight.w700,
-                  fontSize: 14)),
-        ]),
-      ),
-    );
-  }
 }
+

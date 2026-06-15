@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../providers/trip_provider.dart';
 import '../../../data/models/trip_plan.dart';
 
+
 class MyTripsTab extends ConsumerWidget {
   const MyTripsTab({super.key});
 
@@ -31,7 +32,7 @@ class MyTripsTab extends ConsumerWidget {
             Expanded(
               child: hasPlan
                   ? _tripList(context, planState.plan)
-                  : _emptyState(context),
+                  : _emptyState(context, ref),
             ),
           ],
         ),
@@ -55,7 +56,7 @@ class MyTripsTab extends ConsumerWidget {
     );
   }
 
-  Widget _emptyState(BuildContext context) {
+  Widget _emptyState(BuildContext context, WidgetRef ref) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -81,26 +82,29 @@ class MyTripsTab extends ConsumerWidget {
           Text('플래너에서 첫 여행 일정을 만들어보세요',
               style: GoogleFonts.poppins(fontSize: 13, color: kSub)),
           const SizedBox(height: 32),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 28, vertical: 14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [kPrimary, kSecond]),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(
-                  color: kPrimary.withValues(alpha: 0.35),
-                  blurRadius: 16, offset: const Offset(0, 6))],
+          GestureDetector(
+            onTap: () => ref.read(tabIndexProvider.notifier).setTab(1),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 28, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [kPrimary, kSecond]),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(
+                    color: kPrimary.withValues(alpha: 0.35),
+                    blurRadius: 16, offset: const Offset(0, 6))],
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.add_rounded,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('첫 여행 만들기',
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              ]),
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.add_rounded,
-                  color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Text('첫 여행 만들기',
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w700,
-                      color: Colors.white)),
-            ]),
           ),
         ],
       ),
