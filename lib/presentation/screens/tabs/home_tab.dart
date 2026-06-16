@@ -30,7 +30,7 @@ class HomeTab extends ConsumerWidget {
                 children: [
                   _topBar(),
                   _heroBanner(ref),
-                  _sectionHeader('🔥  지금 뜨는 여행지', '전체보기'),
+                  _sectionHeader('🔥  지금 뜨는 여행지', null),
                   _trendingScroll(),
                   _sectionHeader('🌸  계절 추천', null),
                   _seasonalScroll(),
